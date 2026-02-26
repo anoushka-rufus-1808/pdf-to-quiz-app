@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Quiz Generator</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --border: #e2e8f0;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 40px 20px; 
+            line-height: 1.5;
+        }
+
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { margin: 0 0 10px 0; font-size: 2.5rem; color: var(--text); }
+        .header p { margin: 0; color: #64748b; }
+
+        .upload-card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        
+        input[type="file"], input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+
+        button { 
+            width: 100%;
+            padding: 12px; 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: var(--primary-hover); }
+        button:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
+
+        /* Quiz UI Styles */
+        #quizContainer { display: none; }
+        .quiz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        
+        .question-card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .question-text { font-size: 1.1rem; font-weight: 600; margin-top: 0; margin-bottom: 15px; }
+        
+        .option-label {
+            display: block;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .option-label:hover { background: #f1f5f9; }
+        .option-label input { margin-right: 10px; }
+
+        .answer-box {
+            margin-top: 15px;
+            padding: 15px;
+            background: #ecfdf5;
+            border-left: 4px solid #10b981;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .btn-secondary { background: #475569; width: auto; padding: 8px 16px; font-size: 0.9rem;}
+        .btn-secondary:hover { background: #334155; }
+        .action-buttons { display: flex; gap: 10px; justify-content: flex-end;}
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Study Material to Quiz</h1>
+        <p>Upload a PDF to instantly generate an interactive multiple-choice test.</p>
+    </div>
+
+    <div class="upload-card">
+        <div class="form-group">
+            <label for="pdfFile">1. Upload Document (PDF)</label>
+            <input type="file" id="pdfFile" accept="application/pdf">
+        </div>
+        
+        <div class="form-group">
+            <label for="language">2. Select Language</label>
+            <select id="language">
+                <option value="English">English</option>
+                <option value="Hindi">Hindi</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="numQuestions">3. Number of Questions (Max 20)</label>
+            <input type="number" id="numQuestions" min="1" max="20" value="5">
+        </div>
+        
+        <button id="generateBtn" onclick="generateQuiz()">Generate Interactive Quiz</button>
+        <div id="statusMsg"></div>
+    </div>
+
+    <div id="quizContainer">
+        <div class="quiz-header">
+            <h2 id="quizTitle" style="margin:0;">Quiz Title</h2>
+            <div class="action-buttons">
+                <button class="btn-secondary" onclick="toggleAnswers()">Reveal Answers</button>
+                <button class="btn-secondary" onclick="downloadJSON()">Export JSON</button>
+            </div>
+        </div>
+        
+        <div id="questionsList">
+            </div>
+    </div>
+
+    <script>
+        let currentQuizData = null;
+        let answersRevealed = false;
+
+        async function generateQuiz() {
+            const fileInput = document.getElementById('pdfFile');
+            const language = document.getElementById('language').value;
+            const numQuestions = document.getElementById('numQuestions').value;
+            const btn = document.getElementById('generateBtn');
+            const status = document.getElementById('statusMsg');
+            const quizContainer = document.getElementById('quizContainer');
+
+            if (!fileInput.files[0]) {
+                alert("Please select a PDF file first.");
+                return;
+            }
+
+            btn.disabled = true;
+            status.innerText = "Analyzing document and generating questions... (Please wait)";
+            quizContainer.style.display = 'none';
+            document.getElementById('questionsList').innerHTML = ''; 
+            answersRevealed = false; 
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('language', language);
+            formData.append('num_questions', numQuestions);
+
+            try {
+                const response = await fetch('/api/v1/generate-quiz', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    currentQuizData = result.data;
+                    renderQuizUI(currentQuizData);
+                    status.innerText = "";
+                    quizContainer.style.display = 'block';
+                } else {
+                    status.innerText = "Error: " + (result.detail || "Something went wrong.");
+                }
+            } catch (error) {
+                status.innerText = "Network error occurred. Is the backend running?";
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function renderQuizUI(data) {
+            document.getElementById('quizTitle').innerText = data.quiz_title || "Generated Quiz";
+            const questionsList = document.getElementById('questionsList');
+
+            data.questions.forEach((q, index) => {
+                const qCard = document.createElement('div');
+                qCard.className = 'question-card';
+
+                let optionsHTML = '';
+                for (const [key, value] of Object.entries(q.options)) {
+                    optionsHTML += `
+                        <label class="option-label">
+                            <input type="radio" name="question${index}" value="${key}">
+                            <strong>${key}:</strong> ${value}
+                        </label>
+                    `;
+                }
+
+                qCard.innerHTML = `
+                    <p class="question-text">${index + 1}. ${q.question_text}</p>
+                    <div class="options-container">
+                        ${optionsHTML}
+                    </div>
+                    <div class="answer-box">
+                        <strong>Correct Answer: ${q.correct_answer}</strong>
+                        ${q.explanation ? `<p style="margin: 5px 0 0 0;">${q.explanation}</p>` : ''}
+                    </div>
+                `;
+
+                questionsList.appendChild(qCard);
+            });
+        }
+
+        function toggleAnswers() {
+            const answerBoxes = document.querySelectorAll('.answer-box');
+            answersRevealed = !answersRevealed;
+            
+            answerBoxes.forEach(box => {
+                box.style.display = answersRevealed ? 'block' : 'none';
+            });
+        }
+
+        function downloadJSON() {
+            if (!currentQuizData) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentQuizData, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "quiz-export.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+    </script>
+</body>
+</html>
