@@ -90,6 +90,10 @@ Text to analyze:
         )
 
         content = response.choices[0].message.content.strip()
+        start_idx=content.find('{')
+        end_idx=content.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            content=content[start_idx:end_idx+1]
 
         # Attempt JSON parsing
         return json.loads(content)
