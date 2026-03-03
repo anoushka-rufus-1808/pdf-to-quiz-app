@@ -3,3 +3,4 @@ uvicorn
 pymupdf
 openai
 python-multipart
+requests
