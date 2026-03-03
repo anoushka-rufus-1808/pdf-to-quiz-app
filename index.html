@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Quiz Generator</title>
+    <title>AI Study Assistant: Quiz & Podcast</title>
     <style>
         :root {
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
+            --podcast-btn: #10b981;
+            --podcast-btn-hover: #059669;
             --bg: #f8fafc;
             --card-bg: #ffffff;
             --text: #0f172a;
@@ -49,8 +51,10 @@
             font-size: 1rem;
         }
 
+        .button-group { display: flex; gap: 15px; margin-top: 10px; }
+        
         button { 
-            width: 100%;
+            flex: 1;
             padding: 12px; 
             background: var(--primary); 
             color: white; 
@@ -62,13 +66,17 @@
             transition: background 0.2s;
         }
         button:hover { background: var(--primary-hover); }
-        button:disabled { background: #94a3b8; cursor: not-allowed; }
+        button:disabled { background: #94a3b8 !important; cursor: not-allowed; }
+        
+        .btn-podcast { background: var(--podcast-btn); }
+        .btn-podcast:hover { background: var(--podcast-btn-hover); }
 
         #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
 
-        /* Quiz UI Styles */
-        #quizContainer { display: none; }
-        .quiz-header {
+        /* Output Containers */
+        .output-container { display: none; margin-bottom: 30px; }
+        
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -77,7 +85,7 @@
             padding-bottom: 10px;
         }
         
-        .question-card {
+        .content-card {
             background: var(--card-bg);
             padding: 25px;
             border-radius: 10px;
@@ -86,30 +94,19 @@
             border: 1px solid var(--border);
         }
 
+        /* Quiz Specifics */
         .question-text { font-size: 1.1rem; font-weight: 600; margin-top: 0; margin-bottom: 15px; }
-        
         .option-label {
-            display: block;
-            padding: 12px 15px;
-            margin-bottom: 8px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.2s;
+            display: block; padding: 12px 15px; margin-bottom: 8px;
+            border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
         }
         .option-label:hover { background: #f1f5f9; }
-        .option-label input { margin-right: 10px; }
-
         .answer-box {
-            margin-top: 15px;
-            padding: 15px;
-            background: #ecfdf5;
-            border-left: 4px solid #10b981;
-            border-radius: 4px;
-            display: none;
+            margin-top: 15px; padding: 15px; background: #ecfdf5;
+            border-left: 4px solid #10b981; border-radius: 4px; display: none;
         }
 
-        .btn-secondary { background: #475569; width: auto; padding: 8px 16px; font-size: 0.9rem;}
+        .btn-secondary { background: #475569; width: auto; padding: 8px 16px; font-size: 0.9rem; flex: none;}
         .btn-secondary:hover { background: #334155; }
         .action-buttons { display: flex; gap: 10px; justify-content: flex-end;}
     </style>
@@ -117,8 +114,8 @@
 <body>
 
     <div class="header">
-        <h1>Study Material to Quiz</h1>
-        <p>Upload a PDF to instantly generate an interactive multiple-choice test.</p>
+        <h1>Study Material Copilot</h1>
+        <p>Upload a PDF to instantly generate an interactive quiz or an AI podcast.</p>
     </div>
 
     <div class="upload-card">
@@ -135,48 +132,115 @@
             </select>
         </div>
 
-        <div class="form-group">
-            <label for="numQuestions">3. Number of Questions (Max 20)</label>
-            <input type="number" id="numQuestions" min="1" max="20" value="5">
+        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <label for="numQuestions">Quiz: Number of Questions</label>
+                <input type="number" id="numQuestions" min="1" max="20" value="5">
+            </div>
+            <div style="flex: 1;">
+                <label for="podcastDuration">Podcast: Duration (2-10 mins)</label>
+                <input type="number" id="podcastDuration" min="2" max="10" value="3">
+            </div>
         </div>
         
-        <button id="generateBtn" onclick="generateQuiz()">Generate Interactive Quiz</button>
+        <div class="button-group">
+            <button id="generateQuizBtn" onclick="generateQuiz()">Generate Quiz</button>
+            <button id="generatePodcastBtn" class="btn-podcast" onclick="generatePodcast()">Generate Podcast</button>
+        </div>
         <div id="statusMsg"></div>
     </div>
 
-    <div id="quizContainer">
-        <div class="quiz-header">
+    <div id="podcastContainer" class="output-container">
+        <div class="card-header">
+            <h2 style="margin:0;">Generated AI Podcast</h2>
+        </div>
+        
+        <div class="content-card" style="text-align: center;">
+            <audio id="audioPlayer" controls style="width: 100%; margin-bottom: 20px;"></audio>
+            <div style="text-align: left; background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong style="display: block; margin-bottom: 10px;">Podcast Script:</strong>
+                <p id="podcastScript" style="color: #475569; font-size: 0.95rem; white-space: pre-wrap; margin: 0;"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="quizContainer" class="output-container">
+        <div class="card-header">
             <h2 id="quizTitle" style="margin:0;">Quiz Title</h2>
             <div class="action-buttons">
                 <button class="btn-secondary" onclick="toggleAnswers()">Reveal Answers</button>
                 <button class="btn-secondary" onclick="downloadJSON()">Export JSON</button>
             </div>
         </div>
-        
-        <div id="questionsList">
-            </div>
+        <div id="questionsList"></div>
     </div>
 
     <script>
         let currentQuizData = null;
         let answersRevealed = false;
 
-        async function generateQuiz() {
+        function setUIState(isLoading, loadingMessage = "") {
+            document.getElementById('generateQuizBtn').disabled = isLoading;
+            document.getElementById('generatePodcastBtn').disabled = isLoading;
+            document.getElementById('statusMsg').innerText = loadingMessage;
+            
+            if (isLoading) {
+                document.getElementById('quizContainer').style.display = 'none';
+                document.getElementById('podcastContainer').style.display = 'none';
+            }
+        }
+
+        // --- PODCAST GENERATION LOGIC ---
+        async function generatePodcast() {
             const fileInput = document.getElementById('pdfFile');
             const language = document.getElementById('language').value;
-            const numQuestions = document.getElementById('numQuestions').value;
-            const btn = document.getElementById('generateBtn');
-            const status = document.getElementById('statusMsg');
-            const quizContainer = document.getElementById('quizContainer');
-
+            const duration = parseInt(document.getElementById('podcastDuration').value,10);
+            
             if (!fileInput.files[0]) {
                 alert("Please select a PDF file first.");
                 return;
             }
 
-            btn.disabled = true;
-            status.innerText = "Analyzing document and generating questions... (Please wait)";
-            quizContainer.style.display = 'none';
+            setUIState(true, "Writing script and synthesizing audio... (This takes 30-60 seconds)");
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('language', language);
+            formData.append('duration', duration);
+
+            try {
+                const response = await fetch('/api/v1/generate-podcast', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('podcastScript').innerText = result.script;
+                    document.getElementById('audioPlayer').src = result.audio_url;
+                    document.getElementById('podcastContainer').style.display = 'block';
+                    setUIState(false, "Podcast ready!");
+                } else {
+                    setUIState(false, "Error: " + (result.detail || "Something went wrong."));
+                }
+            } catch (error) {
+                setUIState(false, "Network error occurred. Is the backend running?");
+            }
+        }
+
+        // --- QUIZ GENERATION LOGIC ---
+        async function generateQuiz() {
+            const fileInput = document.getElementById('pdfFile');
+            const language = document.getElementById('language').value;
+            const numQuestions = parseInt(document.getElementById('numQuestions').value,10);
+            
+            if (!fileInput.files[0]) {
+                alert("Please select a PDF file first.");
+                return;
+            }
+
+            setUIState(true, "Analyzing document and generating questions... (Please wait)");
             document.getElementById('questionsList').innerHTML = ''; 
             answersRevealed = false; 
 
@@ -196,25 +260,24 @@
                 if (response.ok) {
                     currentQuizData = result.data;
                     renderQuizUI(currentQuizData);
-                    status.innerText = "";
-                    quizContainer.style.display = 'block';
+                    document.getElementById('quizContainer').style.display = 'block';
+                    setUIState(false, "Quiz ready!");
                 } else {
-                    status.innerText = "Error: " + (result.detail || "Something went wrong.");
+                    setUIState(false, "Error: " + (result.detail || "Something went wrong."));
                 }
             } catch (error) {
-                status.innerText = "Network error occurred. Is the backend running?";
-            } finally {
-                btn.disabled = false;
+                setUIState(false, "Network error occurred. Is the backend running?");
             }
         }
 
+        // --- UI HELPERS ---
         function renderQuizUI(data) {
             document.getElementById('quizTitle').innerText = data.quiz_title || "Generated Quiz";
             const questionsList = document.getElementById('questionsList');
 
             data.questions.forEach((q, index) => {
                 const qCard = document.createElement('div');
-                qCard.className = 'question-card';
+                qCard.className = 'content-card';
 
                 let optionsHTML = '';
                 for (const [key, value] of Object.entries(q.options)) {
@@ -228,15 +291,12 @@
 
                 qCard.innerHTML = `
                     <p class="question-text">${index + 1}. ${q.question_text}</p>
-                    <div class="options-container">
-                        ${optionsHTML}
-                    </div>
+                    <div class="options-container">${optionsHTML}</div>
                     <div class="answer-box">
                         <strong>Correct Answer: ${q.correct_answer}</strong>
                         ${q.explanation ? `<p style="margin: 5px 0 0 0;">${q.explanation}</p>` : ''}
                     </div>
                 `;
-
                 questionsList.appendChild(qCard);
             });
         }
@@ -244,21 +304,18 @@
         function toggleAnswers() {
             const answerBoxes = document.querySelectorAll('.answer-box');
             answersRevealed = !answersRevealed;
-            
-            answerBoxes.forEach(box => {
-                box.style.display = answersRevealed ? 'block' : 'none';
-            });
+            answerBoxes.forEach(box => box.style.display = answersRevealed ? 'block' : 'none');
         }
 
         function downloadJSON() {
             if (!currentQuizData) return;
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentQuizData, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "quiz-export.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = "quiz-export.json";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
         }
     </script>
 </body>
