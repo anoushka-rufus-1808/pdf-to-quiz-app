@@ -174,7 +174,8 @@ async def create_podcast(
         tts_data = tts_response.json()
         
         # 4. Construct Final URL and return
-        audio_url = f"{TTS_API_URL}{tts_data['file_path']}"
+        clean_base_url = TTS_API_URL.rstrip('/')
+        audio_url = f"{clean_base_url}{tts_data['file_path']}"
         
         return {
             "status": "success",
