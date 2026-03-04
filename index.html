@@ -73,6 +73,44 @@
 
         #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
 
+        /* Progress Tracker Styles */
+        .steps-container {
+            margin: 20px 0;
+            text-align: left;
+            display: none;
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            color: #94a3b8;
+            transition: color 0.3s;
+        }
+        .step:last-child { margin-bottom: 0; }
+        .step.active { color: var(--primary); font-weight: 600; }
+        .step.completed { color: #10b981; }
+
+        .dot {
+            height: 12px;
+            width: 12px;
+            background-color: #cbd5e1;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .active .dot { background-color: var(--primary); animation: pulse 1.5s infinite; }
+        .completed .dot { background-color: #10b981; }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
         /* Output Containers */
         .output-container { display: none; margin-bottom: 30px; }
         
@@ -147,7 +185,15 @@
             <button id="generateQuizBtn" onclick="generateQuiz()">Generate Quiz</button>
             <button id="generatePodcastBtn" class="btn-podcast" onclick="generatePodcast()">Generate Podcast</button>
         </div>
-        <div id="statusMsg"></div>
+
+        <div id="statusArea">
+            <div id="statusMsg"></div>
+            <div id="stepsContainer" class="steps-container">
+                <div id="step1" class="step"><span class="dot"></span> 📄 Reading PDF & Extracting Text...</div>
+                <div id="step2" class="step"><span class="dot"></span> 🧠 Writing Podcast Script (Groq AI)...</div>
+                <div id="step3" class="step"><span class="dot"></span> 🎙️ Synthesizing Voice (TTS Microservice)...</div>
+            </div>
+        </div>
     </div>
 
     <div id="podcastContainer" class="output-container">
@@ -187,6 +233,7 @@
             if (isLoading) {
                 document.getElementById('quizContainer').style.display = 'none';
                 document.getElementById('podcastContainer').style.display = 'none';
+                document.getElementById('stepsContainer').style.display = 'none';
             }
         }
 
@@ -194,14 +241,25 @@
         async function generatePodcast() {
             const fileInput = document.getElementById('pdfFile');
             const language = document.getElementById('language').value;
-            const duration = parseInt(document.getElementById('podcastDuration').value,10);
+            const duration = parseInt(document.getElementById('podcastDuration').value, 10);
             
             if (!fileInput.files[0]) {
                 alert("Please select a PDF file first.");
                 return;
             }
 
-            setUIState(true, "Writing script and synthesizing audio... (This takes 30-60 seconds)");
+            // UX Setup
+            setUIState(true, ""); 
+            const stepsContainer = document.getElementById('stepsContainer');
+            stepsContainer.style.display = 'block';
+            
+            const s1 = document.getElementById('step1');
+            const s2 = document.getElementById('step2');
+            const s3 = document.getElementById('step3');
+            [s1, s2, s3].forEach(s => s.className = 'step');
+
+            // Phase 1: PDF Extraction
+            s1.classList.add('active');
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
@@ -209,23 +267,43 @@
             formData.append('duration', duration);
 
             try {
+                // Move to Phase 2 (LLM Scripting) after extraction start
+                setTimeout(() => {
+                    s1.classList.replace('active', 'completed');
+                    s2.classList.add('active');
+                }, 1500);
+
                 const response = await fetch('/api/v1/generate-podcast', {
                     method: 'POST',
                     body: formData
                 });
 
+                // Move to Phase 3 (TTS Synthesis) based on average timing
+                setTimeout(() => {
+                    s2.classList.replace('active', 'completed');
+                    s3.classList.add('active');
+                }, 7000); 
+
                 const result = await response.json();
 
                 if (response.ok) {
+                    s3.classList.replace('active', 'completed');
+                    
                     document.getElementById('podcastScript').innerText = result.script;
-                    document.getElementById('audioPlayer').src = result.audio_url;
+                    const player = document.getElementById('audioPlayer');
+                    player.src = result.audio_url;
+                    player.load();
+                    
                     document.getElementById('podcastContainer').style.display = 'block';
-                    setUIState(false, "Podcast ready!");
+                    document.getElementById('statusMsg').innerText = "✅ Podcast ready!";
+                    stepsContainer.style.display = 'none';
+                    setUIState(false, "✅ Podcast ready!");
                 } else {
-                    setUIState(false, "Error: " + (result.detail || "Something went wrong."));
+                    throw new Error(result.detail || "Something went wrong.");
                 }
             } catch (error) {
-                setUIState(false, "Network error occurred. Is the backend running?");
+                setUIState(false, "❌ Error: " + error.message);
+                stepsContainer.style.display = 'none';
             }
         }
 
@@ -233,7 +311,7 @@
         async function generateQuiz() {
             const fileInput = document.getElementById('pdfFile');
             const language = document.getElementById('language').value;
-            const numQuestions = parseInt(document.getElementById('numQuestions').value,10);
+            const numQuestions = parseInt(document.getElementById('numQuestions').value, 10);
             
             if (!fileInput.files[0]) {
                 alert("Please select a PDF file first.");
@@ -261,7 +339,7 @@
                     currentQuizData = result.data;
                     renderQuizUI(currentQuizData);
                     document.getElementById('quizContainer').style.display = 'block';
-                    setUIState(false, "Quiz ready!");
+                    setUIState(false, "✅ Quiz ready!");
                 } else {
                     setUIState(false, "Error: " + (result.detail || "Something went wrong."));
                 }
