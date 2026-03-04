@@ -146,7 +146,7 @@
         .answer-box {
             margin-top: 15px; padding: 15px; background: #f0fdf4;
             border-left: 4px solid #10b981; border-radius: 4px; 
-            display: none; /* Crucial: Keeps answers hidden */
+            display: none; 
         }
         .option-label {
             display: block; padding: 12px 15px; margin-bottom: 8px;
@@ -254,7 +254,6 @@
             if (isLoading) {
                 document.getElementById('quizContainer').style.display = 'none';
                 document.getElementById('podcastContainer').style.display = 'none';
-                document.getElementById('stepsContainer').style.display = 'none';
             }
         }
 
@@ -293,6 +292,7 @@
                 player.src = item.audioUrl;
                 player.load();
                 document.getElementById('podcastContainer').style.display = 'block';
+                window.scrollTo({ top: document.getElementById('podcastContainer').offsetTop - 20, behavior: 'smooth' });
             }
         }
 
@@ -347,10 +347,7 @@
             currentQuizData.questions.forEach((q, i) => {
                 const selected = document.querySelector(`input[name="q${i}"]:checked`);
                 const box = document.getElementById(`ans${i}`);
-                
-                // Show hidden answer box
                 box.style.display = 'block';
-                
                 const labels = document.querySelectorAll(`input[name="q${i}"]`);
                 labels.forEach(input => {
                     const label = input.parentElement;
@@ -364,18 +361,22 @@
             document.getElementById('statScore').innerText = `${score}/${total}`;
             document.getElementById('statPercent').innerText = `${Math.round((score/total)*100)}%`;
             saveResult('quiz', currentQuizData.quiz_title, score, total);
-            
-            // Scroll to stats
             window.scrollTo({ top: document.getElementById('quizStats').offsetTop - 20, behavior: 'smooth' });
         }
 
         async function generatePodcast() {
             const file = document.getElementById('pdfFile').files[0];
             if (!file) { alert("Please upload a PDF first."); return; }
+            
             setUIState(true, "");
             const steps = document.getElementById('stepsContainer');
             steps.style.display = 'block';
+            
             const s1 = document.getElementById('step1'); 
+            const s2 = document.getElementById('step2'); 
+            const s3 = document.getElementById('step3'); 
+            
+            [s1, s2, s3].forEach(s => s.className = 'step');
             s1.classList.add('active');
 
             const formData = new FormData();
@@ -384,18 +385,44 @@
             formData.append('duration', document.getElementById('podcastDuration').value);
 
             try {
+                // Advance to Step 2 after a simulated reading time
+                setTimeout(() => {
+                    if (s1.classList.contains('active')) {
+                        s1.classList.replace('active', 'completed');
+                        s2.classList.add('active');
+                    }
+                }, 2500);
+
                 const res = await fetch('/api/v1/generate-podcast', { method: 'POST', body: formData });
+                
+                // Advance to Step 3 when response arrives
+                s2.classList.replace('active', 'completed');
+                s3.classList.add('active');
+
                 const result = await res.json();
+                
                 if (res.ok) {
+                    s3.classList.replace('active', 'completed');
+                    
                     document.getElementById('podcastScript').innerText = result.script;
                     const player = document.getElementById('audioPlayer');
                     player.src = result.audio_url;
                     player.load();
+                    
                     document.getElementById('podcastContainer').style.display = 'block';
-                    saveResult('podcast', 'New Podcast Summary', null, null, result.audio_url, result.script);
-                    setUIState(false, "✅ Podcast Ready");
+                    saveResult('podcast', 'Podcast Summary', null, null, result.audio_url, result.script);
+                    
+                    setTimeout(() => {
+                        steps.style.display = 'none';
+                        setUIState(false, "✅ Podcast Ready");
+                    }, 1500);
+                } else {
+                    throw new Error(result.detail || "Generation failed");
                 }
-            } catch (e) { setUIState(false, "Podcast failed"); }
+            } catch (e) {
+                setUIState(false, "❌ Error: " + e.message);
+                steps.style.display = 'none';
+            }
         }
     </script>
 </body>
