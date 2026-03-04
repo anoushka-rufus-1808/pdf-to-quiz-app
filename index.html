@@ -88,7 +88,6 @@
             color: #94a3b8;
             transition: color 0.3s;
         }
-        .step:last-child { margin-bottom: 0; }
         .step.active { color: var(--primary); font-weight: 600; }
         .step.completed { color: #10b981; }
 
@@ -143,7 +142,16 @@
         }
         .history-item:hover { background: #e2e8f0; }
 
-        /* Quiz Logic UI */
+        /* Quiz Logic UI - HIDDEN BY DEFAULT */
+        .answer-box {
+            margin-top: 15px; padding: 15px; background: #f0fdf4;
+            border-left: 4px solid #10b981; border-radius: 4px; 
+            display: none; /* Crucial: Keeps answers hidden */
+        }
+        .option-label {
+            display: block; padding: 12px 15px; margin-bottom: 8px;
+            border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+        }
         .option-label.correct { background: #d1fae5; border-color: #10b981; font-weight: 600; }
         .option-label.incorrect { background: #fee2e2; border-color: #ef4444; }
 
@@ -250,7 +258,6 @@
             }
         }
 
-        // --- DASHBOARD LOGIC ---
         function saveResult(type, title, score = null, total = null, audioUrl = null, script = null) {
             let history = JSON.parse(localStorage.getItem('studyHistory') || '[]');
             const entry = {
@@ -280,7 +287,7 @@
         function loadHistoryItem(id) {
             const history = JSON.parse(localStorage.getItem('studyHistory') || '[]');
             const item = history.find(i => i.id === id);
-            if (item.type === 'podcast') {
+            if (item && item.type === 'podcast') {
                 document.getElementById('podcastScript').innerText = item.script;
                 const player = document.getElementById('audioPlayer');
                 player.src = item.audioUrl;
@@ -289,10 +296,9 @@
             }
         }
 
-        // --- QUIZ LOGIC ---
         async function generateQuiz() {
             const file = document.getElementById('pdfFile').files[0];
-            if (!file) { alert("Upload PDF"); return; }
+            if (!file) { alert("Please upload a PDF first."); return; }
             setUIState(true, "Generating quiz...");
             const formData = new FormData();
             formData.append('file', file);
@@ -323,7 +329,14 @@
                 for (const [key, val] of Object.entries(q.options)) {
                     options += `<label class="option-label"><input type="radio" name="q${i}" value="${key}"> ${key}: ${val}</label>`;
                 }
-                card.innerHTML = `<p><strong>${i+1}. ${q.question_text}</strong></p>${options}<div class="answer-box" id="ans${i}"><strong>Correct: ${q.correct_answer}</strong><p>${q.explanation}</p></div>`;
+                card.innerHTML = `
+                    <p><strong>${i+1}. ${q.question_text}</strong></p>
+                    <div class="options-container">${options}</div>
+                    <div class="answer-box" id="ans${i}">
+                        <strong style="color: #065f46;">Correct Answer: ${q.correct_answer}</strong>
+                        <p style="margin-top: 5px;">${q.explanation}</p>
+                    </div>
+                `;
                 list.appendChild(card);
             });
         }
@@ -334,10 +347,14 @@
             currentQuizData.questions.forEach((q, i) => {
                 const selected = document.querySelector(`input[name="q${i}"]:checked`);
                 const box = document.getElementById(`ans${i}`);
+                
+                // Show hidden answer box
                 box.style.display = 'block';
+                
                 const labels = document.querySelectorAll(`input[name="q${i}"]`);
                 labels.forEach(input => {
                     const label = input.parentElement;
+                    label.classList.remove('correct', 'incorrect');
                     if (input.value === q.correct_answer) label.classList.add('correct');
                     if (selected && input === selected && input.value !== q.correct_answer) label.classList.add('incorrect');
                 });
@@ -347,16 +364,19 @@
             document.getElementById('statScore').innerText = `${score}/${total}`;
             document.getElementById('statPercent').innerText = `${Math.round((score/total)*100)}%`;
             saveResult('quiz', currentQuizData.quiz_title, score, total);
+            
+            // Scroll to stats
+            window.scrollTo({ top: document.getElementById('quizStats').offsetTop - 20, behavior: 'smooth' });
         }
 
-        // --- PODCAST LOGIC ---
         async function generatePodcast() {
             const file = document.getElementById('pdfFile').files[0];
-            if (!file) { alert("Upload PDF"); return; }
+            if (!file) { alert("Please upload a PDF first."); return; }
             setUIState(true, "");
             const steps = document.getElementById('stepsContainer');
             steps.style.display = 'block';
-            const s1 = document.getElementById('step1'); s1.classList.add('active');
+            const s1 = document.getElementById('step1'); 
+            s1.classList.add('active');
 
             const formData = new FormData();
             formData.append('file', file);
@@ -372,7 +392,7 @@
                     player.src = result.audio_url;
                     player.load();
                     document.getElementById('podcastContainer').style.display = 'block';
-                    saveResult('podcast', 'New Podcast', null, null, result.audio_url, result.script);
+                    saveResult('podcast', 'New Podcast Summary', null, null, result.audio_url, result.script);
                     setUIState(false, "✅ Podcast Ready");
                 }
             } catch (e) { setUIState(false, "Podcast failed"); }
