@@ -10,7 +10,7 @@ import fitz  # PyMuPDF
 import json
 from openai import OpenAI
 
-app = FastAPI(title="PDF to Quiz API", version="1.0.0")
+app = FastAPI(title="PDF to Quiz API", version="1.1.0")
 
 # Allow frontend access
 app.add_middleware(
@@ -45,39 +45,56 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         raise ValueError(f"Failed to parse PDF: {str(e)}")
 
 # -----------------------------
-# QUIZ GENERATION
+# QUIZ GENERATION (WITH ROBUST JSON CLEANING)
 # -----------------------------
 def generate_quiz_from_text(text: str, language: str, num_questions: int) -> dict:
     prompt = f"""
-You are an expert bilingual educational content creator.
-Create a multiple-choice quiz from the following text in {language}.
-All content MUST be in {language}. Return ONLY valid JSON.
-Schema:
-{{
-  "quiz_title": "String",
-  "questions": [
+    Create a multiple-choice quiz in {language} from the text below.
+    Return ONLY a JSON object. No preamble, no markdown code blocks.
+    
+    Schema:
     {{
-      "question_text": "String",
-      "options": {{"A": "String", "B": "String", "C": "String", "D": "String"}},
-      "correct_answer": "A|B|C|D",
-      "explanation": "String"
+      "quiz_title": "String",
+      "questions": [
+        {{
+          "question_text": "String",
+          "options": {{"A": "String", "B": "String", "C": "String", "D": "String"}},
+          "correct_answer": "A|B|C|D",
+          "explanation": "String"
+        }}
+      ]
     }}
-  ]
-}}
-Text: {text[:4000]}
-"""
+    
+    Text: {text[:4000]}
+    """
     try:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",  
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+            temperature=0.1, # Low temperature for high consistency
         )
+        
         content = response.choices[0].message.content.strip()
+        
+        # --- ROBUST CLEANING LOGIC ---
+        # Strip markdown markers if present
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        
+        # Find strictly the JSON content between braces
         start_idx = content.find('{')
         end_idx = content.rfind('}')
-        if start_idx != -1 and end_idx != -1:
-            content = content[start_idx:end_idx+1]
-        return json.loads(content)
+        
+        if start_idx == -1 or end_idx == -1:
+            raise ValueError("LLM response did not contain valid JSON.")
+            
+        clean_json = content[start_idx:end_idx+1]
+        return json.loads(clean_json)
+        
+    except json.JSONDecodeError:
+        raise ValueError("AI returned an invalid format. Please try again.")
     except Exception as e:
         raise ValueError(f"LLM generation failed: {str(e)}")
 
@@ -120,14 +137,10 @@ async def create_podcast(
         raise HTTPException(status_code=400, detail="Duration must be 2-10 mins.")
 
     try:
-        # 1. Parse Document
         file_bytes = await file.read()
         extracted_text = extract_text_from_pdf(file_bytes)
-        
-        # 2. Generate Script
         script = generate_podcast_script(extracted_text, language, duration)
         
-        # 3. Orchestrate with Exponential Backoff
         headers = {"x-api-key": TTS_API_KEY}
         payload = {"text": script, "target_language": language}
         
@@ -136,35 +149,31 @@ async def create_podcast(
         
         for attempt in range(max_retries):
             try:
-                # Use a timeout so we don't hang forever
                 tts_response = requests.post(
                     f"{TTS_API_URL}/tts/text", 
                     json=payload, 
                     headers=headers, 
-                    timeout=90 
+                    timeout=95 
                 )
                 
                 if tts_response.status_code == 200:
                     tts_data = tts_response.json()
-                    break # Success!
+                    break 
                 
-                # If we get rate limited (429), wait and retry
                 if tts_response.status_code == 429:
-                    wait_time = (attempt + 1) * 4 # 4s, 8s, 12s
-                    print(f"Rate limited. Retrying in {wait_time}s...")
+                    wait_time = (attempt + 1) * 5 
                     time.sleep(wait_time)
                 else:
-                    raise ValueError(f"TTS Service returned {tts_response.status_code}")
+                    raise ValueError(f"TTS Service error: {tts_response.status_code}")
 
             except requests.exceptions.RequestException:
                 if attempt == max_retries - 1:
-                    raise ValueError("Could not connect to TTS service after multiple attempts.")
+                    raise ValueError("Connection to TTS service failed.")
                 time.sleep(3)
 
         if not tts_data:
             raise ValueError("TTS Service is currently unavailable. Please try again in a few minutes.")
             
-        # 4. Construct Final URL safely
         clean_base_url = TTS_API_URL.rstrip('/')
         audio_url = f"{clean_base_url}{tts_data['file_path']}"
         
@@ -198,8 +207,8 @@ async def create_quiz(
         return {"status": "success", "data": quiz_data}
     except ValueError as ve:
         raise HTTPException(status_code=422, detail=str(ve))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui():
