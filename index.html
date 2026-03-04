@@ -93,8 +93,7 @@
         .step.completed { color: #10b981; }
 
         .dot {
-            height: 12px;
-            width: 12px;
+            height: 12px; width: 12px;
             background-color: #cbd5e1;
             border-radius: 50%;
             display: inline-block;
@@ -109,7 +108,23 @@
             100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
         }
 
-        /* History Library Styles */
+        /* Dashboard & History Styles */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card span { display: block; font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+        .stat-card label { font-size: 0.8rem; color: #64748b; }
+
         .history-section {
             margin-top: 20px;
             padding-top: 20px;
@@ -125,25 +140,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: transform 0.1s;
         }
-        .history-item:hover { background: #e2e8f0; transform: translateY(-1px); }
-        .history-item span { font-weight: 500; font-size: 0.9rem; }
+        .history-item:hover { background: #e2e8f0; }
+
+        /* Quiz Logic UI */
+        .option-label.correct { background: #d1fae5; border-color: #10b981; font-weight: 600; }
+        .option-label.incorrect { background: #fee2e2; border-color: #ef4444; }
 
         #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
-
-        /* Output Containers */
         .output-container { display: none; margin-bottom: 30px; }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 10px;
-        }
-        
         .content-card {
             background: var(--card-bg);
             padding: 25px;
@@ -152,29 +157,13 @@
             margin-bottom: 20px;
             border: 1px solid var(--border);
         }
-
-        /* Quiz Specifics */
-        .question-text { font-size: 1.1rem; font-weight: 600; margin-top: 0; margin-bottom: 15px; }
-        .option-label {
-            display: block; padding: 12px 15px; margin-bottom: 8px;
-            border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-        }
-        .option-label:hover { background: #f1f5f9; }
-        .answer-box {
-            margin-top: 15px; padding: 15px; background: #ecfdf5;
-            border-left: 4px solid #10b981; border-radius: 4px; display: none;
-        }
-
-        .btn-secondary { background: #475569; width: auto; padding: 8px 16px; font-size: 0.9rem; flex: none;}
-        .btn-secondary:hover { background: #334155; }
-        .action-buttons { display: flex; gap: 10px; justify-content: flex-end;}
     </style>
 </head>
 <body>
 
     <div class="header">
         <h1>Study Material Copilot</h1>
-        <p>Upload a PDF to instantly generate an interactive quiz or an AI podcast.</p>
+        <p>Interactive AI Quizzes & Educational Podcasts</p>
     </div>
 
     <div class="upload-card">
@@ -193,11 +182,11 @@
 
         <div style="display: flex; gap: 20px; margin-bottom: 20px;">
             <div style="flex: 1;">
-                <label for="numQuestions">Quiz: Number of Questions</label>
+                <label for="numQuestions">Questions</label>
                 <input type="number" id="numQuestions" min="1" max="20" value="5">
             </div>
             <div style="flex: 1;">
-                <label for="podcastDuration">Podcast: Duration (2-10 mins)</label>
+                <label for="podcastDuration">Podcast (Mins)</label>
                 <input type="number" id="podcastDuration" min="2" max="10" value="3">
             </div>
         </div>
@@ -210,55 +199,50 @@
         <div id="statusArea">
             <div id="statusMsg"></div>
             <div id="stepsContainer" class="steps-container">
-                <div id="step1" class="step"><span class="dot"></span> 📄 Reading PDF & Extracting Text...</div>
-                <div id="step2" class="step"><span class="dot"></span> 🧠 Writing Podcast Script (Groq AI)...</div>
-                <div id="step3" class="step"><span class="dot"></span> 🎙️ Synthesizing Voice (TTS Microservice)...</div>
+                <div id="step1" class="step"><span class="dot"></span> 📄 Reading PDF...</div>
+                <div id="step2" class="step"><span class="dot"></span> 🧠 AI Processing...</div>
+                <div id="step3" class="step"><span class="dot"></span> 🎙️ Generating Media...</div>
             </div>
         </div>
 
         <div id="historySection" class="history-section" style="display: none;">
-            <h3 style="margin-top:0; font-size: 1.1rem;">🎧 Podcast Library (Local History)</h3>
+            <h3 style="margin:0 0 15px 0; font-size: 1.1rem;">📊 Study Dashboard</h3>
             <div id="historyList"></div>
         </div>
     </div>
 
     <div id="podcastContainer" class="output-container">
-        <div class="card-header">
-            <h2 style="margin:0;">Generated AI Podcast</h2>
-        </div>
-        
-        <div class="content-card" style="text-align: center;">
+        <div class="content-card">
+            <h2>🎙️ AI Podcast</h2>
             <audio id="audioPlayer" controls style="width: 100%; margin-bottom: 20px;"></audio>
-            <div style="text-align: left; background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid var(--border);">
-                <strong style="display: block; margin-bottom: 10px;">Podcast Script:</strong>
-                <p id="podcastScript" style="color: #475569; font-size: 0.95rem; white-space: pre-wrap; margin: 0;"></p>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid var(--border);">
+                <strong>Podcast Script:</strong>
+                <p id="podcastScript" style="white-space: pre-wrap; font-size: 0.95rem;"></p>
             </div>
         </div>
     </div>
 
     <div id="quizContainer" class="output-container">
+        <div id="quizStats" class="dashboard-grid" style="display: none;">
+            <div class="stat-card"><span id="statScore">0/0</span><label>Last Score</label></div>
+            <div class="stat-card"><span id="statPercent">0%</span><label>Accuracy</label></div>
+        </div>
         <div class="card-header">
-            <h2 id="quizTitle" style="margin:0;">Quiz Title</h2>
-            <div class="action-buttons">
-                <button class="btn-secondary" onclick="toggleAnswers()">Reveal Answers</button>
-                <button class="btn-secondary" onclick="downloadJSON()">Export JSON</button>
-            </div>
+            <h2 id="quizTitle" style="margin:0;">Quiz</h2>
+            <button class="btn-secondary" id="submitQuizBtn" onclick="submitQuiz()" style="padding: 10px 20px; background: #475569; color:white; border:none; border-radius:6px; cursor:pointer;">Submit Quiz</button>
         </div>
         <div id="questionsList"></div>
     </div>
 
     <script>
         let currentQuizData = null;
-        let answersRevealed = false;
 
-        // Initialize library on load
         window.onload = renderHistory;
 
         function setUIState(isLoading, loadingMessage = "") {
             document.getElementById('generateQuizBtn').disabled = isLoading;
             document.getElementById('generatePodcastBtn').disabled = isLoading;
             document.getElementById('statusMsg').innerText = loadingMessage;
-            
             if (isLoading) {
                 document.getElementById('quizContainer').style.display = 'none';
                 document.getElementById('podcastContainer').style.display = 'none';
@@ -266,210 +250,132 @@
             }
         }
 
-        // --- HISTORY LOGIC ---
-        function saveToHistory(script, audioUrl) {
-            let history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
-            const newItem = {
+        // --- DASHBOARD LOGIC ---
+        function saveResult(type, title, score = null, total = null, audioUrl = null, script = null) {
+            let history = JSON.parse(localStorage.getItem('studyHistory') || '[]');
+            const entry = {
                 id: Date.now(),
                 date: new Date().toLocaleString(),
-                script: script,
-                audioUrl: audioUrl
+                type, title, score, total, audioUrl, script
             };
-            history.unshift(newItem);
-            history = history.slice(0, 5); // Keep last 5
-            localStorage.setItem('podcastHistory', JSON.stringify(history));
+            history.unshift(entry);
+            localStorage.setItem('studyHistory', JSON.stringify(history.slice(0, 10)));
             renderHistory();
         }
 
         function renderHistory() {
-            const history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
+            const history = JSON.parse(localStorage.getItem('studyHistory') || '[]');
             const container = document.getElementById('historySection');
             const list = document.getElementById('historyList');
-            
-            if (history.length === 0) {
-                container.style.display = 'none';
-                return;
-            }
-            
+            if (history.length === 0) { container.style.display = 'none'; return; }
             container.style.display = 'block';
             list.innerHTML = history.map(item => `
-                <div class="history-item" onclick="loadFromHistory(${item.id})">
-                    <span>🎙️ Podcast (${item.date})</span>
-                    <small>Click to play</small>
+                <div class="history-item" onclick="loadHistoryItem(${item.id})">
+                    <span>${item.type === 'quiz' ? '📝 Quiz' : '🎙️ Podcast'}: ${item.title.substring(0,30)}...</span>
+                    <strong>${item.score !== null ? item.score + '/' + item.total : 'Play'}</strong>
                 </div>
             `).join('');
         }
 
-        function loadFromHistory(id) {
-            const history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
+        function loadHistoryItem(id) {
+            const history = JSON.parse(localStorage.getItem('studyHistory') || '[]');
             const item = history.find(i => i.id === id);
-            if (item) {
+            if (item.type === 'podcast') {
                 document.getElementById('podcastScript').innerText = item.script;
                 const player = document.getElementById('audioPlayer');
                 player.src = item.audioUrl;
                 player.load();
                 document.getElementById('podcastContainer').style.display = 'block';
-                window.scrollTo({ top: document.getElementById('podcastContainer').offsetTop - 20, behavior: 'smooth' });
             }
         }
 
-        // --- PODCAST GENERATION LOGIC ---
-        async function generatePodcast() {
-            const fileInput = document.getElementById('pdfFile');
-            const language = document.getElementById('language').value;
-            const duration = parseInt(document.getElementById('podcastDuration').value, 10);
-            
-            if (!fileInput.files[0]) {
-                alert("Please select a PDF file first.");
-                return;
-            }
-
-            setUIState(true, ""); 
-            const stepsContainer = document.getElementById('stepsContainer');
-            stepsContainer.style.display = 'block';
-            
-            const s1 = document.getElementById('step1');
-            const s2 = document.getElementById('step2');
-            const s3 = document.getElementById('step3');
-            [s1, s2, s3].forEach(s => s.className = 'step');
-
-            s1.classList.add('active');
-
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('language', language);
-            formData.append('duration', duration);
-
-            try {
-                setTimeout(() => {
-                    if(s1.classList.contains('active')) {
-                        s1.classList.replace('active', 'completed');
-                        s2.classList.add('active');
-                    }
-                }, 2000);
-
-                const response = await fetch('/api/v1/generate-podcast', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    s1.classList.replace('active', 'completed');
-                    s2.classList.replace('active', 'completed');
-                    s3.classList.add('active');
-                    
-                    setTimeout(() => {
-                        s3.classList.replace('active', 'completed');
-                        document.getElementById('podcastScript').innerText = result.script;
-                        const player = document.getElementById('audioPlayer');
-                        player.src = result.audio_url;
-                        player.load();
-                        
-                        // Save to history library
-                        saveToHistory(result.script, result.audio_url);
-
-                        document.getElementById('podcastContainer').style.display = 'block';
-                        document.getElementById('statusMsg').innerText = "✅ Podcast ready!";
-                        stepsContainer.style.display = 'none';
-                        setUIState(false, "✅ Podcast ready!");
-                    }, 1000);
-                } else {
-                    throw new Error(result.detail || "Something went wrong.");
-                }
-            } catch (error) {
-                setUIState(false, "❌ Error: " + error.message);
-                stepsContainer.style.display = 'none';
-            }
-        }
-
-        // --- QUIZ GENERATION LOGIC ---
+        // --- QUIZ LOGIC ---
         async function generateQuiz() {
-            const fileInput = document.getElementById('pdfFile');
-            const language = document.getElementById('language').value;
-            const numQuestions = parseInt(document.getElementById('numQuestions').value, 10);
-            
-            if (!fileInput.files[0]) {
-                alert("Please select a PDF file first.");
-                return;
-            }
-
-            setUIState(true, "Analyzing document and generating questions... (Please wait)");
-            document.getElementById('questionsList').innerHTML = ''; 
-            answersRevealed = false; 
-
+            const file = document.getElementById('pdfFile').files[0];
+            if (!file) { alert("Upload PDF"); return; }
+            setUIState(true, "Generating quiz...");
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('language', language);
-            formData.append('num_questions', numQuestions);
+            formData.append('file', file);
+            formData.append('language', document.getElementById('language').value);
+            formData.append('num_questions', document.getElementById('numQuestions').value);
 
             try {
-                const response = await fetch('/api/v1/generate-quiz', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
+                const res = await fetch('/api/v1/generate-quiz', { method: 'POST', body: formData });
+                const result = await res.json();
+                if (res.ok) {
                     currentQuizData = result.data;
-                    renderQuizUI(currentQuizData);
+                    renderQuizUI(result.data);
                     document.getElementById('quizContainer').style.display = 'block';
-                    setUIState(false, "✅ Quiz ready!");
-                } else {
-                    setUIState(false, "Error: " + (result.detail || "Something went wrong."));
+                    document.getElementById('quizStats').style.display = 'none';
+                    setUIState(false, "✅ Quiz Loaded");
                 }
-            } catch (error) {
-                setUIState(false, "Network error occurred. Is the backend running?");
-            }
+            } catch (e) { setUIState(false, "Error loading quiz"); }
         }
 
         function renderQuizUI(data) {
-            document.getElementById('quizTitle').innerText = data.quiz_title || "Generated Quiz";
-            const questionsList = document.getElementById('questionsList');
-
-            data.questions.forEach((q, index) => {
-                const qCard = document.createElement('div');
-                qCard.className = 'content-card';
-
-                let optionsHTML = '';
-                for (const [key, value] of Object.entries(q.options)) {
-                    optionsHTML += `
-                        <label class="option-label">
-                            <input type="radio" name="question${index}" value="${key}">
-                            <strong>${key}:</strong> ${value}
-                        </label>
-                    `;
+            document.getElementById('quizTitle').innerText = data.quiz_title;
+            const list = document.getElementById('questionsList');
+            list.innerHTML = '';
+            data.questions.forEach((q, i) => {
+                const card = document.createElement('div');
+                card.className = 'content-card';
+                let options = '';
+                for (const [key, val] of Object.entries(q.options)) {
+                    options += `<label class="option-label"><input type="radio" name="q${i}" value="${key}"> ${key}: ${val}</label>`;
                 }
-
-                qCard.innerHTML = `
-                    <p class="question-text">${index + 1}. ${q.question_text}</p>
-                    <div class="options-container">${optionsHTML}</div>
-                    <div class="answer-box">
-                        <strong>Correct Answer: ${q.correct_answer}</strong>
-                        ${q.explanation ? `<p style="margin: 5px 0 0 0;">${q.explanation}</p>` : ''}
-                    </div>
-                `;
-                questionsList.appendChild(qCard);
+                card.innerHTML = `<p><strong>${i+1}. ${q.question_text}</strong></p>${options}<div class="answer-box" id="ans${i}"><strong>Correct: ${q.correct_answer}</strong><p>${q.explanation}</p></div>`;
+                list.appendChild(card);
             });
         }
 
-        function toggleAnswers() {
-            const answerBoxes = document.querySelectorAll('.answer-box');
-            answersRevealed = !answersRevealed;
-            answerBoxes.forEach(box => box.style.display = answersRevealed ? 'block' : 'none');
+        function submitQuiz() {
+            let score = 0;
+            const total = currentQuizData.questions.length;
+            currentQuizData.questions.forEach((q, i) => {
+                const selected = document.querySelector(`input[name="q${i}"]:checked`);
+                const box = document.getElementById(`ans${i}`);
+                box.style.display = 'block';
+                const labels = document.querySelectorAll(`input[name="q${i}"]`);
+                labels.forEach(input => {
+                    const label = input.parentElement;
+                    if (input.value === q.correct_answer) label.classList.add('correct');
+                    if (selected && input === selected && input.value !== q.correct_answer) label.classList.add('incorrect');
+                });
+                if (selected && selected.value === q.correct_answer) score++;
+            });
+            document.getElementById('quizStats').style.display = 'grid';
+            document.getElementById('statScore').innerText = `${score}/${total}`;
+            document.getElementById('statPercent').innerText = `${Math.round((score/total)*100)}%`;
+            saveResult('quiz', currentQuizData.quiz_title, score, total);
         }
 
-        function downloadJSON() {
-            if (!currentQuizData) return;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentQuizData, null, 2));
-            const a = document.createElement('a');
-            a.href = dataStr;
-            a.download = "quiz-export.json";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+        // --- PODCAST LOGIC ---
+        async function generatePodcast() {
+            const file = document.getElementById('pdfFile').files[0];
+            if (!file) { alert("Upload PDF"); return; }
+            setUIState(true, "");
+            const steps = document.getElementById('stepsContainer');
+            steps.style.display = 'block';
+            const s1 = document.getElementById('step1'); s1.classList.add('active');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('language', document.getElementById('language').value);
+            formData.append('duration', document.getElementById('podcastDuration').value);
+
+            try {
+                const res = await fetch('/api/v1/generate-podcast', { method: 'POST', body: formData });
+                const result = await res.json();
+                if (res.ok) {
+                    document.getElementById('podcastScript').innerText = result.script;
+                    const player = document.getElementById('audioPlayer');
+                    player.src = result.audio_url;
+                    player.load();
+                    document.getElementById('podcastContainer').style.display = 'block';
+                    saveResult('podcast', 'New Podcast', null, null, result.audio_url, result.script);
+                    setUIState(false, "✅ Podcast Ready");
+                }
+            } catch (e) { setUIState(false, "Podcast failed"); }
         }
     </script>
 </body>
