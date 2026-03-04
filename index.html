@@ -71,8 +71,6 @@
         .btn-podcast { background: var(--podcast-btn); }
         .btn-podcast:hover { background: var(--podcast-btn-hover); }
 
-        #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
-
         /* Progress Tracker Styles */
         .steps-container {
             margin: 20px 0;
@@ -110,6 +108,29 @@
             70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
             100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
         }
+
+        /* History Library Styles */
+        .history-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        .history-item {
+            background: #f1f5f9;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        .history-item:hover { background: #e2e8f0; transform: translateY(-1px); }
+        .history-item span { font-weight: 500; font-size: 0.9rem; }
+
+        #statusMsg { text-align: center; font-weight: 500; margin-top: 15px; color: var(--primary); }
 
         /* Output Containers */
         .output-container { display: none; margin-bottom: 30px; }
@@ -194,6 +215,11 @@
                 <div id="step3" class="step"><span class="dot"></span> 🎙️ Synthesizing Voice (TTS Microservice)...</div>
             </div>
         </div>
+
+        <div id="historySection" class="history-section" style="display: none;">
+            <h3 style="margin-top:0; font-size: 1.1rem;">🎧 Podcast Library (Local History)</h3>
+            <div id="historyList"></div>
+        </div>
     </div>
 
     <div id="podcastContainer" class="output-container">
@@ -225,6 +251,9 @@
         let currentQuizData = null;
         let answersRevealed = false;
 
+        // Initialize library on load
+        window.onload = renderHistory;
+
         function setUIState(isLoading, loadingMessage = "") {
             document.getElementById('generateQuizBtn').disabled = isLoading;
             document.getElementById('generatePodcastBtn').disabled = isLoading;
@@ -234,6 +263,53 @@
                 document.getElementById('quizContainer').style.display = 'none';
                 document.getElementById('podcastContainer').style.display = 'none';
                 document.getElementById('stepsContainer').style.display = 'none';
+            }
+        }
+
+        // --- HISTORY LOGIC ---
+        function saveToHistory(script, audioUrl) {
+            let history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
+            const newItem = {
+                id: Date.now(),
+                date: new Date().toLocaleString(),
+                script: script,
+                audioUrl: audioUrl
+            };
+            history.unshift(newItem);
+            history = history.slice(0, 5); // Keep last 5
+            localStorage.setItem('podcastHistory', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
+            const container = document.getElementById('historySection');
+            const list = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'block';
+            list.innerHTML = history.map(item => `
+                <div class="history-item" onclick="loadFromHistory(${item.id})">
+                    <span>🎙️ Podcast (${item.date})</span>
+                    <small>Click to play</small>
+                </div>
+            `).join('');
+        }
+
+        function loadFromHistory(id) {
+            const history = JSON.parse(localStorage.getItem('podcastHistory') || '[]');
+            const item = history.find(i => i.id === id);
+            if (item) {
+                document.getElementById('podcastScript').innerText = item.script;
+                const player = document.getElementById('audioPlayer');
+                player.src = item.audioUrl;
+                player.load();
+                document.getElementById('podcastContainer').style.display = 'block';
+                window.scrollTo({ top: document.getElementById('podcastContainer').offsetTop - 20, behavior: 'smooth' });
             }
         }
 
@@ -248,7 +324,6 @@
                 return;
             }
 
-            // UX Setup
             setUIState(true, ""); 
             const stepsContainer = document.getElementById('stepsContainer');
             stepsContainer.style.display = 'block';
@@ -258,7 +333,6 @@
             const s3 = document.getElementById('step3');
             [s1, s2, s3].forEach(s => s.className = 'step');
 
-            // Phase 1: PDF Extraction
             s1.classList.add('active');
 
             const formData = new FormData();
@@ -267,37 +341,40 @@
             formData.append('duration', duration);
 
             try {
-                // Move to Phase 2 (LLM Scripting) after extraction start
                 setTimeout(() => {
-                    s1.classList.replace('active', 'completed');
-                    s2.classList.add('active');
-                }, 1500);
+                    if(s1.classList.contains('active')) {
+                        s1.classList.replace('active', 'completed');
+                        s2.classList.add('active');
+                    }
+                }, 2000);
 
                 const response = await fetch('/api/v1/generate-podcast', {
                     method: 'POST',
                     body: formData
                 });
 
-                // Move to Phase 3 (TTS Synthesis) based on average timing
-                setTimeout(() => {
-                    s2.classList.replace('active', 'completed');
-                    s3.classList.add('active');
-                }, 7000); 
-
                 const result = await response.json();
 
                 if (response.ok) {
-                    s3.classList.replace('active', 'completed');
+                    s1.classList.replace('active', 'completed');
+                    s2.classList.replace('active', 'completed');
+                    s3.classList.add('active');
                     
-                    document.getElementById('podcastScript').innerText = result.script;
-                    const player = document.getElementById('audioPlayer');
-                    player.src = result.audio_url;
-                    player.load();
-                    
-                    document.getElementById('podcastContainer').style.display = 'block';
-                    document.getElementById('statusMsg').innerText = "✅ Podcast ready!";
-                    stepsContainer.style.display = 'none';
-                    setUIState(false, "✅ Podcast ready!");
+                    setTimeout(() => {
+                        s3.classList.replace('active', 'completed');
+                        document.getElementById('podcastScript').innerText = result.script;
+                        const player = document.getElementById('audioPlayer');
+                        player.src = result.audio_url;
+                        player.load();
+                        
+                        // Save to history library
+                        saveToHistory(result.script, result.audio_url);
+
+                        document.getElementById('podcastContainer').style.display = 'block';
+                        document.getElementById('statusMsg').innerText = "✅ Podcast ready!";
+                        stepsContainer.style.display = 'none';
+                        setUIState(false, "✅ Podcast ready!");
+                    }, 1000);
                 } else {
                     throw new Error(result.detail || "Something went wrong.");
                 }
@@ -348,7 +425,6 @@
             }
         }
 
-        // --- UI HELPERS ---
         function renderQuizUI(data) {
             document.getElementById('quizTitle').innerText = data.quiz_title || "Generated Quiz";
             const questionsList = document.getElementById('questionsList');
